@@ -54,7 +54,15 @@ class CsvHandler
 
     private function extract_main_fields($row)
     {
-        $main_fields = array_diff_key($row, array_flip(['fields', 'actions', 'errors']));
+        // Remove id and other non-insertable fields
+        $excluded_fields = ['id', 'fields', 'actions', 'errors'];
+        $main_fields = array_diff_key($row, array_flip($excluded_fields));
+
+        // Clean BOM from first field if present
+        if (isset($main_fields["\xEF\xBB\xBF" . 'id'])) {
+            unset($main_fields["\xEF\xBB\xBF" . 'id']);
+        }
+
         return array_filter($main_fields, function ($value) {
             return $value !== '';
         });

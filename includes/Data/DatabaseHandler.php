@@ -22,9 +22,20 @@ class DatabaseHandler
         $this->wpdb->query('START TRANSACTION');
 
         try {
+            // Remove id field if it exists in main record
+            if (isset($record['main']['id'])) {
+                unset($record['main']['id']);
+            }
+            // Remove any BOM from field names
+            $cleaned_main = [];
+            foreach ($record['main'] as $key => $value) {
+                $clean_key = str_replace("\xEF\xBB\xBF", '', $key);
+                $cleaned_main[$clean_key] = $value;
+            }
+
             $this->wpdb->insert(
                 $this->wpdb->prefix . 'jet_fb_records',
-                $record['main']
+                $cleaned_main
             );
             $record_id = $this->wpdb->insert_id;
 

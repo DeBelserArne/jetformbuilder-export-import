@@ -2,8 +2,51 @@
 
 namespace JetFB\ExportImport\Import;
 
-class Handler
+use JetFB\ExportImport\Data\CsvHandler;
+use JetFB\ExportImport\Data\DatabaseHandler;
+use JetFB\ExportImport\Data\DataTransformer;
+use JetFB\ExportImport\Data\RecordProcessor;
+
+class Handler extends RecordProcessor
 {
+    private $csv_handler;
+    private $db_handler;
+    private $transformer;
+
+    public function __construct()
+    {
+        $this->csv_handler = new CsvHandler();
+        $this->db_handler = new DatabaseHandler();
+        $this->transformer = new DataTransformer();
+    }
+
+    public function preview_import($file)
+    {
+        if (!current_user_can('manage_options')) {
+            return ['error' => 'Unauthorized'];
+        }
+
+        if (!$file || !file_exists($file)) {
+            return ['error' => 'No file uploaded'];
+        }
+
+        try {
+            $records = $this->csv_handler->parse_csv($file);
+            $form_ids = array_unique(array_column(array_column($records, 'main'), 'form_id'));
+
+            return [
+                'success' => true,
+                'records' => $records,
+                'summary' => [
+                    'total_records' => count($records),
+                    'forms' => $form_ids
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
     public function process()
     {
         if (!current_user_can('manage_options')) {
@@ -12,49 +55,20 @@ class Handler
 
         check_admin_referer('jetfb_import_action', 'jetfb_import_nonce');
 
-        if (!isset($_FILES['import_file'])) {
-            wp_die('No file uploaded');
+        if (!isset($_POST['confirmed_import'])) {
+            wp_die('Import not confirmed');
         }
 
-        $file = $_FILES['import_file'];
-        if ($file['error'] || $file['type'] !== 'text/csv') {
-            wp_die('Invalid file');
+        $import_data = unserialize(base64_decode($_POST['import_data']));
+        if (!$import_data) {
+            wp_die('Invalid import data');
         }
 
-        $records = $this->parse_csv($file['tmp_name']);
-        $this->import_records($records);
+        $this->db_handler->import_records($import_data);
 
         wp_safe_redirect(
-            add_query_arg(
-                'imported',
-                '1',
-                admin_url('admin.php?page=jetfb-export-import')
-            )
+            add_query_arg('imported', '1', admin_url('admin.php?page=jetfb-export-import'))
         );
         exit;
-    }
-
-    private function parse_csv($file)
-    {
-        $records = [];
-        if (($handle = fopen($file, "r")) !== FALSE) {
-            $headers = fgetcsv($handle);
-            while (($data = fgetcsv($handle)) !== FALSE) {
-                $records[] = array_combine($headers, $data);
-            }
-            fclose($handle);
-        }
-        return $records;
-    }
-
-    private function import_records($records)
-    {
-        global $wpdb;
-        foreach ($records as $record) {
-            $wpdb->insert(
-                $wpdb->prefix . 'jet_fb_records',
-                $record
-            );
-        }
     }
 }

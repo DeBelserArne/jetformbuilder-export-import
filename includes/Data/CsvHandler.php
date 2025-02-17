@@ -4,6 +4,13 @@ namespace JetFB\ExportImport\Data;
 
 class CsvHandler
 {
+    private $transformer;
+
+    public function __construct()
+    {
+        $this->transformer = new DataTransformer();
+    }
+
     public function read($file)
     {
         if (($handle = fopen($file, "r")) === FALSE) {
@@ -40,12 +47,19 @@ class CsvHandler
         $records = [];
 
         foreach ($csv_data['data'] as $row) {
+            // Debug output
+            error_log('Processing CSV row: ' . print_r($row, true));
+
             $record = [
                 'main' => $this->extract_main_fields($row),
-                'fields' => $this->parse_json_data($row['fields']),
-                'actions' => $this->parse_json_data($row['actions']),
-                'errors' => $this->parse_json_data($row['errors'])
+                'fields' => $this->parse_json_data($row['fields'] ?? ''),
+                'actions' => $this->parse_json_data($row['actions'] ?? ''),
+                'errors' => $this->parse_json_data($row['errors'] ?? '')
             ];
+
+            // Debug output
+            error_log('Processed record: ' . print_r($record, true));
+
             $records[] = $record;
         }
 
@@ -70,13 +84,6 @@ class CsvHandler
 
     private function parse_json_data($data)
     {
-        if (empty($data)) return [];
-
-        if (strpos($data, 'base64:') === 0) {
-            $data = base64_decode(substr($data, 7));
-        }
-
-        $decoded = json_decode($data, true);
-        return is_array($decoded) ? $decoded : [];
+        return $this->transformer->decode_from_csv($data);
     }
 }

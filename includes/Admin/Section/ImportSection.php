@@ -226,13 +226,16 @@ class ImportSection extends AbstractSection
 
     private function render_preview_data()
     {
+        // Filter out duplicates from the preview data
+        $filtered_records = $this->filter_duplicate_records($this->preview_data['records']);
+        $this->preview_data['records'] = $filtered_records;
     ?>
         <div class="import-preview">
             <h3><?php esc_html_e('Preview Import Data', 'jetfb-export-import'); ?></h3>
 
             <p>
                 <strong><?php esc_html_e('Total Records:', 'jetfb-export-import'); ?></strong>
-                <?php echo count($this->preview_data['records']); ?><br>
+                <?php echo count($filtered_records); ?><br>
 
                 <strong><?php esc_html_e('Forms:', 'jetfb-export-import'); ?></strong>
                 <?php echo implode(', ', $this->preview_data['summary']['forms']); ?>
@@ -278,6 +281,32 @@ class ImportSection extends AbstractSection
             </form>
         </div>
     <?php
+    }
+
+    private function filter_duplicate_records($records)
+    {
+        $unique_records = [];
+        $seen = [];
+
+        foreach ($records as $record) {
+            // Create a unique key for each record based on fields
+            $field_keys = [];
+            foreach ($record['fields'] as $field) {
+                if (isset($field['field_name'], $field['field_value'])) {
+                    $field_keys[] = $field['field_name'] . '|' . $field['field_value'];
+                }
+            }
+            sort($field_keys); // Sort to ensure consistent order
+            $key = implode(':', $field_keys);
+
+            // Only keep first occurrence of each unique record
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $unique_records[] = $record;
+            }
+        }
+
+        return $unique_records;
     }
 
     private function render_error_message($message)

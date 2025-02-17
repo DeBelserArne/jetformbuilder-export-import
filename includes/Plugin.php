@@ -31,7 +31,6 @@ class Plugin
 
     private function init_hooks()
     {
-        // Admin menu
         add_action('admin_menu', function () {
             add_menu_page(
                 'JetFB Export Import',
@@ -43,34 +42,7 @@ class Plugin
             );
         });
 
-        // Export/Import handlers
         add_action('admin_post_jetfb_export_records', [$this->export_handler, 'process']);
         add_action('admin_post_jetfb_import_records', [$this->import_handler, 'process']);
-    }
-
-    public function activate()
-    {
-        // Create necessary database tables if needed
-        global $wpdb;
-
-        $charset_collate = $wpdb->get_charset_collate();
-        $table_name = $wpdb->prefix . 'jet_fb_records';
-
-        $sql = "CREATE TABLE IF NOT EXISTS $table_name (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            form_id bigint(20) NOT NULL,
-            user_id bigint(20) NOT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            data longtext NOT NULL,
-            PRIMARY KEY  (id)
-        ) $charset_collate;";
-
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
-
-    public function deactivate()
-    {
-        // Cleanup if needed
     }
 }

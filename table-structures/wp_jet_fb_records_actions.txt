@@ -1,0 +1,9 @@
+Kolom	Type	Commentaar
+id	bigint(20) Auto nummering	
+record_id	bigint(20)	
+action_slug	varchar(255)	
+action_id	int(11)	
+on_event	varchar(155) NULL [DEFAULT.PROCESS]	
+status	varchar(255)	
+created_at	timestamp [CURRENT_TIMESTAMP]	
+updated_at	timestamp NULL	

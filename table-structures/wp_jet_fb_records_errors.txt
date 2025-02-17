@@ -1,0 +1,11 @@
+Kolom	Type	Commentaar
+id	bigint(20) Auto nummering	
+record_id	bigint(20)	
+name	varchar(100) NULL	
+message	varchar(255) NULL	
+file	varchar(255) NULL	
+line	int(11) NULL	
+trace_string	longtext NULL	
+data	longtext NULL	
+created_at	timestamp [CURRENT_TIMESTAMP]	
+updated_at	timestamp NULL	

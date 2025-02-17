@@ -1,0 +1,14 @@
+Kolom	Type	Commentaar
+id	bigint(20) Auto nummering	
+form_id	bigint(20) unsigned	
+user_id	bigint(20) NULL	
+from_content_id	bigint(20)	
+from_content_type	varchar(20)	
+status	varchar(255) NULL	
+ip_address	varchar(255) NULL	
+user_agent	text NULL	
+referrer	text NULL	
+submit_type	varchar(20) NULL	
+is_viewed	tinyint(1) NULL	
+created_at	timestamp [CURRENT_TIMESTAMP]	
+updated_at	timestamp NULL	

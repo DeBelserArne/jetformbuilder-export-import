@@ -1,0 +1,7 @@
+Kolom	Type	Commentaar
+id	bigint(20) Auto nummering	
+record_id	bigint(20)	
+field_name	varchar(100)	
+field_value	longtext NULL	
+field_type	varchar(40)	
+field_attrs	longtext NULL	

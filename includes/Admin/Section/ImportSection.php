@@ -268,7 +268,6 @@ class ImportSection extends AbstractSection
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <?php wp_nonce_field('jetfb_import_action', 'jetfb_import_nonce'); ?>
                 <input type="hidden" name="action" value="jetfb_import_records">
-                <input type="hidden" name="confirmed_import" value="1">
                 <input type="hidden" name="import_data" value="<?php echo esc_attr(base64_encode(serialize($this->preview_data['records']))); ?>">
 
                 <p class="submit">

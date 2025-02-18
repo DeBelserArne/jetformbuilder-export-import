@@ -2,8 +2,21 @@
 
 namespace JetFB\ExportImport\Data;
 
+/**
+ * Handles data transformation for CSV import/export
+ * Provides methods to safely encode and decode complex data structures
+ */
 class DataTransformer
 {
+    /**
+     * Encodes data for safe storage in CSV format
+     * 1. Converts any string input to array
+     * 2. JSON encodes with Unicode support
+     * 3. Base64 encodes to prevent CSV formatting issues
+     * 
+     * @param mixed $data Array or JSON string to encode
+     * @return string Base64 encoded string prefixed with 'base64:'
+     */
     public function encode_for_csv($data)
     {
         if (empty($data)) {
@@ -22,6 +35,15 @@ class DataTransformer
         return 'base64:' . base64_encode($json);
     }
 
+    /**
+     * Decodes data from CSV storage back to original format
+     * 1. Checks for base64: prefix
+     * 2. Decodes base64 to JSON string
+     * 3. Parses JSON into array
+     * 
+     * @param string $value Base64 encoded string from CSV
+     * @return array Decoded data or empty array on failure
+     */
     public function decode_from_csv($value)
     {
         if (empty($value)) {
@@ -55,6 +77,13 @@ class DataTransformer
         return [];
     }
 
+    /**
+     * Parses a JSON field that was previously encoded for CSV
+     * Handles double encoding cases (JSON within base64 within JSON)
+     * 
+     * @param string $json_string Encoded JSON string
+     * @return array Parsed data or empty array on failure
+     */
     public function parse_json_field($json_string)
     {
         $data = json_decode($this->decode_from_csv($json_string), true);

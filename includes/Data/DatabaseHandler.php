@@ -2,8 +2,13 @@
 
 namespace JetFB\ExportImport\Data;
 
+/**
+ * Handles all database operations for form records including import/export
+ * Uses transactions to ensure data integrity
+ */
 class DatabaseHandler
 {
+    /** @var wpdb WordPress database connection */
     private $wpdb;
 
     public function __construct()
@@ -12,11 +17,22 @@ class DatabaseHandler
         $this->wpdb = $wpdb;
     }
 
+    /**
+     * Retrieves form records and their related data (fields, actions, errors)
+     * @param array $form_ids Array of form IDs to retrieve records for
+     * @return array Records with their related data in JSON format
+     */
     public function get_form_records($form_ids)
     {
         return $this->wpdb->get_results($this->build_select_query($form_ids));
     }
 
+    /**
+     * Inserts a single form record with all its related data
+     * Uses transaction to ensure all data is inserted consistently
+     * @param array $record Record data including main record and related data (fields, actions, errors)
+     * @return bool True on success, throws Exception on failure
+     */
     public function insert_record($record)
     {
         $this->wpdb->query('START TRANSACTION');
@@ -51,6 +67,13 @@ class DatabaseHandler
         }
     }
 
+    /**
+     * Batch imports multiple form records
+     * Each record is imported in its own transaction
+     * @param array $records Array of records to import
+     * @return bool True on success
+     * @throws \Exception When import fails
+     */
     public function import_records($records)
     {
         foreach ($records as $record) {
@@ -87,6 +110,13 @@ class DatabaseHandler
         return true;
     }
 
+    /**
+     * Inserts related data for a form record
+     * Handles parsing, deduplication and validation before insertion
+     * @param string $table Base table name without prefix
+     * @param mixed $items Array or JSON string of items to insert
+     * @param int $record_id Parent record ID
+     */
     private function insert_related_data($table, $items, $record_id)
     {
         if (empty($items)) return;
@@ -121,6 +151,16 @@ class DatabaseHandler
         }
     }
 
+    /**
+     * Parses items from various formats into a clean array
+     * Handles:
+     * - Direct arrays
+     * - JSON strings
+     * - Base64 encoded JSON
+     * - Arrays with JSON strings
+     * @param mixed $items Data to parse
+     * @return array Parsed items or empty array on failure
+     */
     private function parse_items($items)
     {
         // If items is already an array and not a JSON string
@@ -152,6 +192,13 @@ class DatabaseHandler
         return [];
     }
 
+    /**
+     * Removes duplicate items based on unique identifiers per table type
+     * Maintains only the first occurrence of each unique item
+     * @param string $table Full table name with prefix
+     * @param array $items Items to deduplicate
+     * @return array Unique items
+     */
     private function deduplicate_items($table, $items)
     {
         $unique_items = [];
@@ -170,6 +217,15 @@ class DatabaseHandler
         return $unique_items;
     }
 
+    /**
+     * Generates a unique key for an item based on table schema
+     * Fields: unique by field_name
+     * Actions: unique by action_slug + action_id
+     * Errors: unique by name + message combination
+     * @param string $table Full table name
+     * @param array $item Item to generate key for
+     * @return string Unique key
+     */
     private function get_unique_key($table, $item)
     {
         switch ($table) {
@@ -191,6 +247,13 @@ class DatabaseHandler
         }
     }
 
+    /**
+     * Prepares data for database insertion according to table schema
+     * Handles default values and required fields validation
+     * @param string $table Full table name
+     * @param array $item Data to prepare
+     * @return array|false Prepared data or false if required fields are missing
+     */
     private function prepare_table_data($table, $item)
     {
         switch ($table) {
@@ -221,6 +284,12 @@ class DatabaseHandler
         return false;
     }
 
+    /**
+     * Builds SQL query to select form records with their related data
+     * Uses JSON_ARRAYAGG to combine related records into JSON format
+     * @param array $form_ids Form IDs to include in query
+     * @return string Prepared SQL query
+     */
     private function build_select_query($form_ids)
     {
         $placeholders = implode(',', array_fill(0, count($form_ids), '%d'));

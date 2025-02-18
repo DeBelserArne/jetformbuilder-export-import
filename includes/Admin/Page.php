@@ -13,7 +13,7 @@ class Page
     private $export_section;
     private $import_section;
 
-    public function __construct($debug = true)
+    public function __construct($debug = false)
     {
         $this->debug = $debug;
         $this->header_section = new HeaderSection($debug);

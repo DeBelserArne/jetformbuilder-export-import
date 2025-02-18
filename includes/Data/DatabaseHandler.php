@@ -91,91 +91,27 @@ class DatabaseHandler
     {
         if (empty($items)) return;
 
-        // If we get a concatenated JSON string, split it into objects
-        if (is_string($items[0])) {
-            $json_objects = array_filter(array_map(function ($str) {
-                // Try to parse each potential JSON object
-                $cleaned = trim($str, " ,\n\r\t");
-                $decoded = json_decode($cleaned, true);
-                return ($decoded && json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
-            }, preg_split('/},\s*{/', trim($items[0], '{}'))));
+        // Ensure table has prefix
+        $table = $this->wpdb->prefix . $table;
 
-            $items = $json_objects;
-        }
+        // Parse items if they're in string format
+        $parsed_items = $this->parse_items($items);
+        if (empty($parsed_items)) return;
 
-        // Remove duplicates by serializing arrays and using array_unique
-        $unique_items = [];
-        $seen = [];
+        // Deduplicate items based on their unique characteristics
+        $unique_items = $this->deduplicate_items($table, $parsed_items);
 
-        foreach ($items as $item) {
-            if (empty($item) || !is_array($item)) continue;
-
-            // Create a key from the relevant fields based on table type
-            $key = '';
-            switch ($table) {
-                case $this->wpdb->prefix . 'jet_fb_records_fields':
-                    if (!isset($item['field_name'])) {
-                        break;
-                    }
-                    $key = $item['field_name'] . '|' . ($item['field_value'] ?? '');
-                    break;
-
-                case $this->wpdb->prefix . 'jet_fb_records_actions':
-                    if (!isset($item['action_slug'])) {
-                        break;
-                    }
-                    $key = $item['action_slug'] . '|' . ($item['action_id'] ?? '');
-                    break;
-
-                case $this->wpdb->prefix . 'jet_fb_records_errors':
-                    $key = ($item['name'] ?? '') . '|' . ($item['message'] ?? '');
-                    break;
-            }
-
-            if (!empty($key) && !isset($seen[$key])) {
-                $seen[$key] = true;
-                $unique_items[] = $item;
-            }
-        }
-
-        // Process only unique items
+        // Insert unique items
         foreach ($unique_items as $item) {
             $data = ['record_id' => $record_id];
-            $success = false;
 
-            // Determine table schema and prepare data
-            switch ($table) {
-                case $this->wpdb->prefix . 'jet_fb_records_fields':
-                    if (!isset($item['field_name'])) {
-                        break;
-                    }
-                    $data['field_name'] = $item['field_name'];
-                    $data['field_value'] = $item['field_value'] ?? '';
-                    $data['field_type'] = $item['field_type'] ?? 'text';
-                    $data['field_attrs'] = $item['field_attrs'] ?? '';
-                    $success = true;
-                    break;
+            // Prepare data based on table type
+            $prepared_data = $this->prepare_table_data($table, $item);
 
-                case $this->wpdb->prefix . 'jet_fb_records_actions':
-                    if (!isset($item['action_slug'])) {
-                        break;
-                    }
-                    $data['action_slug'] = $item['action_slug'];
-                    $data['action_id'] = $item['action_id'] ?? 0;
-                    $data['on_event'] = $item['on_event'] ?? 'PROCESS';
-                    $data['status'] = $item['status'] ?? '';
-                    $success = true;
-                    break;
-
-                case $this->wpdb->prefix . 'jet_fb_records_errors':
-                    $data['name'] = $item['name'] ?? '';
-                    $data['message'] = $item['message'] ?? '';
-                    $success = true;
-                    break;
-            }
-
-            if ($success) {
+            if ($prepared_data) {
+                $data = array_merge($data, $prepared_data);
                 $result = $this->wpdb->insert($table, $data);
+
                 if ($result === false) {
                     error_log('Failed to insert into ' . $table);
                     error_log('Data: ' . print_r($data, true));
@@ -183,6 +119,106 @@ class DatabaseHandler
                 }
             }
         }
+    }
+
+    private function parse_items($items)
+    {
+        // If items is already an array and not a JSON string
+        if (is_array($items) && !is_string(reset($items))) {
+            return $items;
+        }
+
+        // If items is a JSON string, decode it
+        if (is_string($items)) {
+            $decoded = json_decode($items, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        // Handle case where first element is a JSON string
+        if (is_array($items) && isset($items[0]) && is_string($items[0])) {
+            try {
+                $cleaned = stripslashes($items[0]);
+                $decoded = json_decode($cleaned, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $decoded;
+                }
+            } catch (\Exception $e) {
+                error_log('JSON parsing error: ' . $e->getMessage());
+            }
+        }
+
+        return [];
+    }
+
+    private function deduplicate_items($table, $items)
+    {
+        $unique_items = [];
+        $seen = [];
+
+        foreach ($items as $item) {
+            if (empty($item) || !is_array($item)) continue;
+
+            $key = $this->get_unique_key($table, $item);
+            if (!empty($key) && !isset($seen[$key])) {
+                $seen[$key] = true;
+                $unique_items[] = $item;
+            }
+        }
+
+        return $unique_items;
+    }
+
+    private function get_unique_key($table, $item)
+    {
+        switch ($table) {
+            case $this->wpdb->prefix . 'jet_fb_records_fields':
+                return isset($item['field_name']) ? $item['field_name'] : '';
+
+            case $this->wpdb->prefix . 'jet_fb_records_actions':
+                return isset($item['action_slug']) && isset($item['action_id'])
+                    ? $item['action_slug'] . '_' . $item['action_id']
+                    : '';
+
+            case $this->wpdb->prefix . 'jet_fb_records_errors':
+                return isset($item['name']) && isset($item['message'])
+                    ? $item['name'] . '_' . $item['message']
+                    : '';
+
+            default:
+                return '';
+        }
+    }
+
+    private function prepare_table_data($table, $item)
+    {
+        switch ($table) {
+            case $this->wpdb->prefix . 'jet_fb_records_fields':
+                if (!isset($item['field_name'])) return false;
+                return [
+                    'field_name' => $item['field_name'],
+                    'field_value' => $item['field_value'] ?? '',
+                    'field_type' => $item['field_type'] ?? 'text',
+                    'field_attrs' => $item['field_attrs'] ?? ''
+                ];
+
+            case $this->wpdb->prefix . 'jet_fb_records_actions':
+                if (!isset($item['action_slug'])) return false;
+                return [
+                    'action_slug' => $item['action_slug'],
+                    'action_id' => $item['action_id'] ?? 0,
+                    'on_event' => $item['on_event'] ?? 'PROCESS',
+                    'status' => $item['status'] ?? ''
+                ];
+
+            case $this->wpdb->prefix . 'jet_fb_records_errors':
+                return [
+                    'name' => $item['name'] ?? '',
+                    'message' => $item['message'] ?? ''
+                ];
+        }
+        return false;
     }
 
     private function build_select_query($form_ids)

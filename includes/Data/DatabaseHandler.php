@@ -25,15 +25,15 @@ class DatabaseHandler
     public function get_form_records($form_ids)
     {
         $query = $this->build_select_query($form_ids);
-        error_log('JetFB Export Query: ' . $query);
+        //g('JetFB Export Query: ' . $query);
 
         $results = $this->wpdb->get_results($query);
         $count = count($results);
-        error_log('JetFB Export Records Count: ' . $count);
-        error_log('JetFB Export Form IDs: ' . print_r($form_ids, true));
+        //error_log('JetFB Export Records Count: ' . $count);
+        //error_log('JetFB Export Form IDs: ' . print_r($form_ids, true));
 
         // Log the actual data returned
-        error_log('JetFB Export Data: ' . print_r($results, true));
+        //error_log('JetFB Export Data: ' . print_r($results, true));
 
         return $results;
     }
@@ -303,47 +303,54 @@ class DatabaseHandler
      */
     private function build_select_query($form_ids)
     {
-        $placeholders = implode(',', array_fill(0, count($form_ids), '%d'));
+        $query = new QueryBuilder($this->wpdb);
+        return $query
+            ->select('r.*')
+            ->addJsonField('fields', $this->buildFieldsSubquery())
+            ->addJsonField('actions', $this->buildActionsSubquery())
+            ->addJsonField('errors', $this->buildErrorsSubquery())
+            ->from('jet_fb_records', 'r')
+            ->where('form_id IN (' . implode(',', array_fill(0, count($form_ids), '%d')) . ')', $form_ids)
+            ->build();
+    }
 
-        return $this->wpdb->prepare(
-            "SELECT r.*, 
-                    (SELECT JSON_ARRAYAGG(
-                        JSON_OBJECT(
-                            'field_name', field_name,
-                            'field_value', field_value,
-                            'field_type', field_type,
-                            'field_attrs', field_attrs
-                        )
-                    ) FROM (
-                        SELECT DISTINCT field_name, field_value, field_type, field_attrs 
-                        FROM {$this->wpdb->prefix}jet_fb_records_fields 
-                        WHERE record_id = r.id
-                    ) as unique_fields) as fields,
-                    (SELECT JSON_ARRAYAGG(
-                        JSON_OBJECT(
-                            'action_slug', action_slug,
-                            'action_id', action_id,
-                            'on_event', on_event,
-                            'status', status
-                        )
-                    ) FROM (
-                        SELECT DISTINCT action_slug, action_id, on_event, status 
-                        FROM {$this->wpdb->prefix}jet_fb_records_actions 
-                        WHERE record_id = r.id
-                    ) as unique_actions) as actions,
-                    (SELECT JSON_ARRAYAGG(
-                        JSON_OBJECT(
-                            'name', name,
-                            'message', message
-                        )
-                    ) FROM (
-                        SELECT DISTINCT name, message 
-                        FROM {$this->wpdb->prefix}jet_fb_records_errors 
-                        WHERE record_id = r.id
-                    ) as unique_errors) as errors
-             FROM {$this->wpdb->prefix}jet_fb_records r
-             WHERE r.form_id IN ($placeholders)",
-            ...$form_ids
-        );
+    private function buildFieldsSubquery()
+    {
+        return [
+            'table' => 'jet_fb_records_fields',
+            'columns' => ['field_name', 'field_value', 'field_type', 'field_attrs'],
+            'json_mapping' => [
+                'field_name' => 'field_name',
+                'field_value' => 'field_value',
+                'field_type' => 'field_type',
+                'field_attrs' => 'field_attrs'
+            ]
+        ];
+    }
+
+    private function buildActionsSubquery()
+    {
+        return [
+            'table' => 'jet_fb_records_actions',
+            'columns' => ['action_slug', 'action_id', 'on_event', 'status'],
+            'json_mapping' => [
+                'action_slug' => 'action_slug',
+                'action_id' => 'action_id',
+                'on_event' => 'on_event',
+                'status' => 'status'
+            ]
+        ];
+    }
+
+    private function buildErrorsSubquery()
+    {
+        return [
+            'table' => 'jet_fb_records_errors',
+            'columns' => ['name', 'message'],
+            'json_mapping' => [
+                'name' => 'name',
+                'message' => 'message'
+            ]
+        ];
     }
 }

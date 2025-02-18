@@ -16,9 +16,9 @@ class Page
     public function __construct($debug = false)
     {
         $this->debug = $debug;
-        $this->header_section = new HeaderSection($debug);
-        $this->export_section = new ExportSection($debug);
-        $this->import_section = new ImportSection($debug);
+        $this->header_section = new HeaderSection();
+        $this->export_section = new ExportSection();
+        $this->import_section = new ImportSection();
     }
 
     public function render()

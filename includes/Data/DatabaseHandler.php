@@ -24,7 +24,18 @@ class DatabaseHandler
      */
     public function get_form_records($form_ids)
     {
-        return $this->wpdb->get_results($this->build_select_query($form_ids));
+        $query = $this->build_select_query($form_ids);
+        error_log('JetFB Export Query: ' . $query);
+
+        $results = $this->wpdb->get_results($query);
+        $count = count($results);
+        error_log('JetFB Export Records Count: ' . $count);
+        error_log('JetFB Export Form IDs: ' . print_r($form_ids, true));
+
+        // Log the actual data returned
+        error_log('JetFB Export Data: ' . print_r($results, true));
+
+        return $results;
     }
 
     /**
@@ -296,34 +307,42 @@ class DatabaseHandler
 
         return $this->wpdb->prepare(
             "SELECT r.*, 
-                    JSON_ARRAYAGG(
+                    (SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                            'field_name', f.field_name,
-                            'field_value', f.field_value,
-                            'field_type', f.field_type,
-                            'field_attrs', f.field_attrs
+                            'field_name', field_name,
+                            'field_value', field_value,
+                            'field_type', field_type,
+                            'field_attrs', field_attrs
                         )
-                    ) as fields,
-                    JSON_ARRAYAGG(
+                    ) FROM (
+                        SELECT DISTINCT field_name, field_value, field_type, field_attrs 
+                        FROM {$this->wpdb->prefix}jet_fb_records_fields 
+                        WHERE record_id = r.id
+                    ) as unique_fields) as fields,
+                    (SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                            'action_slug', a.action_slug,
-                            'action_id', a.action_id,
-                            'on_event', a.on_event,
-                            'status', a.status
+                            'action_slug', action_slug,
+                            'action_id', action_id,
+                            'on_event', on_event,
+                            'status', status
                         )
-                    ) as actions,
-                    JSON_ARRAYAGG(
+                    ) FROM (
+                        SELECT DISTINCT action_slug, action_id, on_event, status 
+                        FROM {$this->wpdb->prefix}jet_fb_records_actions 
+                        WHERE record_id = r.id
+                    ) as unique_actions) as actions,
+                    (SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                            'name', e.name,
-                            'message', e.message
+                            'name', name,
+                            'message', message
                         )
-                    ) as errors
+                    ) FROM (
+                        SELECT DISTINCT name, message 
+                        FROM {$this->wpdb->prefix}jet_fb_records_errors 
+                        WHERE record_id = r.id
+                    ) as unique_errors) as errors
              FROM {$this->wpdb->prefix}jet_fb_records r
-             LEFT JOIN {$this->wpdb->prefix}jet_fb_records_fields f ON r.id = f.record_id
-             LEFT JOIN {$this->wpdb->prefix}jet_fb_records_actions a ON r.id = a.record_id
-             LEFT JOIN {$this->wpdb->prefix}jet_fb_records_errors e ON r.id = e.record_id
-             WHERE r.form_id IN ($placeholders)
-             GROUP BY r.id",
+             WHERE r.form_id IN ($placeholders)",
             ...$form_ids
         );
     }
